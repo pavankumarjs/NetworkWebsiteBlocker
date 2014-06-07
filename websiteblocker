@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Name of the network where websites should be blocked
+NETWORKNAME=officenetwork
+
+# List of websites to block
+WEBSITES=("quora.com" "www.facebook.com" "timesofindia.indiatimes.com")
+
+# Redirect address
+REDIRECT=127.0.0.1
+
+# Log info
+LOGDIR=/var/log/websiteblocker
+LOGFILE=$LOGDIR/output.log
+
+# current date time
+DATE=$(date "+%Y-%m-%d %H:%M:%S")
+
+function checkLogDir()
+{
+	if [ ! -d $LOGDIR ]; then
+		mkdir $LOGDIR
+		touch $LOGFILE
+	fi
+}
+
+function logger()
+{
+	checkLogDir
+	echo "[$DATE] ${1}" >> $LOGFILE
+}
+
+# Gets the connected network's SSID using the airport command
+# Available only on Macbooks
+SSID=$(/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I|grep " SSID"|awk '{split($0,a,":"); print a[2]}'|sed 's/^ *//')
+
+if [ "$SSID" == "$NETWORKNAME" ]; then
+	logger "Connected to $NETWORKNAME"
+	if [[ ! -f /etc/hosts.backup ]]; then
+		cp /etc/hosts /etc/hosts.backup
+		for SITE in "${WEBSITES[@]}"; do
+			echo "$REDIRECT       $SITE" >> /etc/hosts
+		done
+		dscacheutil -flushcache
+		logger "Websites blocked"
+	fi
+else
+	logger "SSID = $SSID"
+	if [ -f /etc/hosts.backup ]; then
+		mv /etc/hosts.backup /etc/hosts
+		dscacheutil -flushcache
+		logger "Unblocking websites"
+	fi
+fi
